@@ -1,4 +1,4 @@
-// 
+
 // Author: Kevin Ingles
 // File: MeatAndBones.cpp
 // Description: Translation unit for MeatAndBones.hpp
@@ -7,11 +7,16 @@
 
 #include <limits>
 #include <cmath>
+#include <iostream>
+
+#include <fmt/core.h>
+
+static constexpr bool DEBUG = false;
+
 static constexpr double inf = std::numeric_limits<double>::infinity();
 
 // Choice to generalize code to calculate number of points to use
 static constexpr int NSUM48 = 24;
-
 
 // constexpr keyword is to ensure there are not defined in multiple translation units
 static constexpr double x48[NSUM48] = { 0.0323801709628694,
@@ -82,7 +87,19 @@ static double GausQuadAux(Functor&& func, double _low, double _high, double resu
 {
     // Quick check to ensure that we should do calculation
     if (depth <= 0)
+    {
+        if (DEBUG)
+        {
+            std::cerr << "Integrate failed to converge.\n";
+            std::cerr << "Either increase depth or analyze integrand.\n";
+        }
         return result;
+    }
+    else if (std::isnan(result))
+    {
+        std::cerr << "NaN encountered in integration, please check integrand.\n";
+        exit(-1);
+    }
 
     double high = _high;
     double low = _low;
@@ -197,9 +214,10 @@ namespace xinhic
     static double F(double p, double k, double temperature, double r)
     {
         double T = temperature;
-        double exp_part = std::exp(-(p * p + r * r * k * k) / (params.m * T));
-        double sinhc_part = std::sinh(r * k * p / (params.m * T)) / r * k * p / (params.m * T);
-        return exp_part * sinhc_part;
+        double exp_part = std::exp(-(p * p + r * r * k * k) / (2.0 * params.m * T));
+        double sinhc_part = (k * p == 0) ? 1 : std::sinh(r * k * p / (params.m * T)) / (r * k * p / (params.m * T));
+        double value = exp_part * sinhc_part;
+        return exp_part > 0 ? value : 0;
     }
 
     static double G(double p, double k, double temperature)
@@ -208,7 +226,7 @@ namespace xinhic
         double T2 = T * T;
         double T3 = T2 * T;
         double r = params.m / params.Mt;
-        double exp_part = std::exp(-(p * p + r * r * k * k) / (params.m * T));
+        double exp_part = std::exp(-(p * p + r * r * k * k) / (2.0 * params.m * T));
         double sinhc_part = std::sinh(r * k * p / (params.m * T)) / r * k * p / (params.m * T);
         double coshc_part = std::cosh(r * k * p / (params.m * T)) / r * k * p / (params.m * T);
         double derivative = -2.0 * T2  * coshc_part;
@@ -217,7 +235,7 @@ namespace xinhic
         return exp_part * std::pow(params.m / (r * p * k), 2.0) * derivative;
     }
 
-    double ReDSelfEnergy(double D_momentum, double temperature, double delta1, double delta2)
+    double ReDSelfEnergy(double D_momentum, double temperature, double delta1, double delta2, double pion_density)
     {
         // Interand for self energy
         double p = D_momentum;
@@ -229,33 +247,31 @@ namespace xinhic
             double K2 = 2 * r * params.Mt * delta;
             double K = std::sqrt(K2);
             if (k2 - K2 == 0)
-                return 0.0;
+                return 0.5 * F(K, K, T, r);
             else 
                 return (k2 * F(p, k, T, r) - K2 * F(p, K, T, r)) / (k2 - K2);
         };
-        double I0p = GausQuad(integrand, 0, inf, 1e-8, 4, delta1);
-        double I00 = GausQuad(integrand, 0, inf, 1e-8, 4, delta2);
-
+        double I0p = GausQuad(integrand, 0, inf, 1e-6, 10, delta1);
+        double I00 = GausQuad(integrand, 0, inf, 1e-6, 10, delta2);
+        
         double C0p = r * params.Mt * delta1;
         double C00 = r * params.Mt * delta2;
-        double dist_norm = std::pow(2.0 * PI / (params.m * T), 1.5) / (PI * PI);
+        double dist_norm = pion_density * std::pow(2.0 * PI / (params.m * T), 1.5) / (PI * PI);
         double prefactor = - params.g2 * params.M / (params.Mt * params.fpi * params.fpi);
-
         return prefactor * (1.5 + dist_norm * (C0p * I0p + 0.5 * C00 * I00));
     }
 
-    double ImDSelfEnergy(double D_momentum, double temperature, double delta1, double delta2)
+    double ImDSelfEnergy(double D_momentum, double temperature, double delta1, double delta2, double pion_density)
     {
-        double junk = G(1, 1, 1);
         double p = D_momentum;
         double T = temperature;
         double r = params.m / params.M;
         double x2 = 2.0 * r * params.Mt; // really can't think of a good descriptionve name
         double x = std::sqrt(x2);
         
-        double dist_norm = std::pow(2.0 * PI / (params.m * T), 1.5) / (PI * PI);
+        double dist_norm = pion_density * std::pow(2.0 * PI / (params.m * T), 1.5) / (PI * PI);
         double prefactor = params.g2 * params.M / (4.0 * params.Mt * params.fpi * params.fpi);
         
-        return prefactor * dist_norm * (std::pow(x2 * delta1, 2.5) * F(p, x * delta1, T, r) + 0.5 * std::pow(x2 * delta2, 2.5) * F(p, x * delta2, T, r));
+        return prefactor * dist_norm * (std::pow(x2 * delta1, 2.5) * F(p, x * std::sqrt(delta1), T, r) + 0.5 * std::pow(x2 * delta2, 2.5) * F(p, x * std::sqrt(delta2), T, r));
     }
 }

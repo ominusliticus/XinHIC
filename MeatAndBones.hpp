@@ -12,7 +12,7 @@ namespace xinhic
     struct Parameters
     {
         // Note: All unitful quantities should be in terms MeV
-        double g2   = 0.239;
+        double g2   = 0.329;
         double fpi  = 130.5;
 
         // PDG mass
@@ -48,8 +48,8 @@ namespace xinhic
         double dpm = et0 - ep - epip;
     };
 
-    double ReDSelfEnergy(double D_momentum, double temperature, double delta1, double delta2);
-    double ImDSelfEnergy(double D_momentum, double temperature, double delta1, double delta2);
+    double ReDSelfEnergy(double D_momentum, double temperature, double delta1, double delta2, double pion_density);
+    double ImDSelfEnergy(double D_momentum, double temperature, double delta1, double delta2, double pion_density);
     // double ReDtSelfEnergy(double Dt_momentum, double temperature, double delta1, double delta2);  
     // double ImDtSelfEnergy(double Dt_momentum, double temperature, double delta1, double delta2);
 }
