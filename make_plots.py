@@ -38,25 +38,43 @@ def costumize_axis(ax: plt.Axes, x_title: str, y_title: str):
     return ax
 
 if __name__ == '__main__':
-    with open('trial_file.dat','r') as f_trial_file:
-        lines = f_trial_file.readlines()
-        data = np.array([[float(entry) for entry in line.split()] for line in lines])
+    with open('D-self-energies.dat','r') as f:
+        data = np.array([[float(entry) for entry in line.split()] for line in f.readlines()])
 
-        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(20,10))
-        fig.patch.set_facecolor('white')
-        
-        cmap = get_cmap(10, 'tab10')
-        temps = [150, 125, 100, 75, 50]
-        for i, val in enumerate([1, 3, 5, 7, 9]):
-            ax[0].plot(data[:,0], data[:,val], lw=3, color=cmap(i), label=r'$T=\ $' + f'{temps[i]} MeV')
-            ax[1].plot(data[:,0], data[:,val+1], lw=3, color=cmap(i))
-        
+    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(6 * 2,6))
+    fig.patch.set_facecolor('white')
+    
+    cmap = ['blue', 'red'] # get_cmap(10, 'Set1')
+    temps = [150, 125, 100, 75, 50]
+    for i, val in enumerate([1, 3]):
+        ax[0].plot(data[:,0], data[:,val], lw=3, color=cmap[i], label=r'$T=\ $' + f'{temps[i]} MeV')
+        ax[1].plot(data[:,0], data[:,val+1], lw=3, color=cmap[i])
+    
 #        ax[0].legend(loc='lower left', fontsize=20)
 
 #        ax[0].text(0,-750, r'$\mathfrak{n}_\pi = 2.3\times10^5$ MeV$^3$', fontsize=20)
 
-        costumize_axis(ax[0], r'$p$ MeV', r'$\mathrm{Re}[\Pi_{0}(p)]$ MeV')
-        costumize_axis(ax[1], r'$p$ MeV', r'$\mathrm{Im}[\Pi_{0}(p)]$ MeV') 
+    costumize_axis(ax[0], r'$E$ [MeV]', r'$\mathrm{Re}[\Pi_{0,\pm}(p)]$ [MeV]')
+    costumize_axis(ax[1], r'$E$ [MeV]', r'$\mathrm{Im}[\Pi_{0,\pm}(p)]$ [MeV]') 
+    
+    fig.tight_layout()
+    fig.savefig('D-self-energies.pdf')
+
+
+    with open('Dt-self-energies.dat','r') as f:
+        data = np.array([[float(entry) for entry in line.split()] for line in f.readlines()])
+
+    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(6 * 2, 6))
+    fig.patch.set_facecolor('white')
+
+    for i, val in enumerate([1, 3]):
+        ax[0].plot(data[:,0], data[:,val], lw=3, color=cmap[i], label=r'$T=\ $' + f'{temps[i]} MeV')
+        ax[0].plot(data[:,0], data[:,val+1], lw=3, color=cmap[i], ls='dashed')
+        ax[1].plot(data[:,0], data[:,val], lw=3, color=cmap[i], label=r'$T=\ $' + f'{temps[i]} MeV')
+        ax[1].plot(data[:,0], data[:,val+1], lw=3, color=cmap[i], ls='dashed')
         
-        fig.tight_layout()
-        fig.savefig('trial_file.pdf')
+    costumize_axis(ax[0], r'$E$ [MeV]', r'$\mathrm{Re}[\Pi_{*0,\pm}(p)]$ [MeV]')
+    costumize_axis(ax[1], r'$E$ [MeV]', r'$\mathrm{Im}[\Pi_{*0,\pm}(p)]$ [MeV]') 
+    
+    fig.tight_layout()
+    fig.savefig('Dt-self-energies.pdf')

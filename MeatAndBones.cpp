@@ -98,7 +98,7 @@ static double GausQuadAux(Functor&& func, double _low, double _high, double resu
     else if (std::isnan(result))
     {
         std::cerr << "NaN encountered in integration, please check integrand.\n";
-        exit(-1);
+        // exit(-1);
     }
 
     double high = _high;
@@ -214,7 +214,7 @@ namespace xinhic
     static double F(double p, double k, double temperature, double r)
     {
         double T = temperature;
-        double exp_part = std::exp(-(p * p + r * r * k * k) / (2.0 * params.m * T));
+        double exp_part = std::exp(-(k * k + r * r * p * p) / (2.0 * params.m * T));
         double sinhc_part = (k * p == 0) ? 1 : std::sinh(r * k * p / (params.m * T)) / (r * k * p / (params.m * T));
         double value = exp_part * sinhc_part;
         return exp_part > 0 ? value : 0;
@@ -226,7 +226,7 @@ namespace xinhic
         double T2 = T * T;
         double T3 = T2 * T;
         double r = params.m / params.Mt;
-        double exp_part = std::exp(-(p * p + r * r * k * k) / (2.0 * params.m * T));
+        double exp_part = std::exp(-(k * k + r * r * p * p) / (2.0 * params.m * T));
         double sinhc_part = std::sinh(r * k * p / (params.m * T)) / r * k * p / (params.m * T);
         double coshc_part = std::cosh(r * k * p / (params.m * T)) / r * k * p / (params.m * T);
         double derivative = -2.0 * T2  * coshc_part;
@@ -235,43 +235,166 @@ namespace xinhic
         return exp_part * std::pow(params.m / (r * p * k), 2.0) * derivative;
     }
 
-    double ReDSelfEnergy(double D_momentum, double temperature, double delta1, double delta2, double pion_density)
+    double ReDSelfEnergy(double D_energy, double temperature, double delta1, double delta2, double pion_density)
     {
         // Interand for self energy
-        double p = D_momentum;
+        double p = std::sqrt(2.0 * params.M * D_energy);
         double T = temperature;
         double r = params.m / params.M;
         auto integrand = [=](double k, double delta) -> double
         {
             double k2 = k * k;
             double K2 = 2 * r * params.Mt * delta;
-            double K = std::sqrt(K2);
-            if (k2 - K2 == 0)
-                return 0.5 * F(K, K, T, r);
-            else 
-                return (k2 * F(p, k, T, r) - K2 * F(p, K, T, r)) / (k2 - K2);
+            if (delta < 0)
+                return k2 * F(p, k, T, r) / (k2 - K2);
+            else
+            {
+                double K = std::sqrt(K2);
+                if (k2 - K2 == 0)
+                    return 0.5 * F(K, K, T, r);
+                else 
+                    return (k2 * F(p, k, T, r) - K2 * F(p, K, T, r)) / (k2 - K2);
+            }
         };
-        double I0p = GausQuad(integrand, 0, inf, 1e-6, 10, delta1);
-        double I00 = GausQuad(integrand, 0, inf, 1e-6, 10, delta2);
+        double K1 = (delta1 > 0) ? std::sqrt(2.0 * r * params.Mt * delta1) : inf;
+        double K2 = (delta2 > 0) ? std::sqrt(2.0 * r * params.Mt * delta2) : inf;
+        double I1 = GausQuad(integrand, 0, K1, 1e-6, 10, delta1) + GausQuad(integrand, K1, inf, 1e-6, 10, delta1);
+        double I2 = GausQuad(integrand, 0, K2, 1e-6, 10, delta2) + GausQuad(integrand, K2, inf, 1e-6, 10, delta2);
         
-        double C0p = r * params.Mt * delta1;
-        double C00 = r * params.Mt * delta2;
-        double dist_norm = pion_density * std::pow(2.0 * PI / (params.m * T), 1.5) / (PI * PI);
-        double prefactor = - params.g2 * params.M / (params.Mt * params.fpi * params.fpi);
-        return prefactor * (1.5 + dist_norm * (C0p * I0p + 0.5 * C00 * I00));
+        double C1 = r * params.Mt * delta1;
+        double C2 = r * params.Mt * delta2;
+        double dist_norm = std::pow(2.0 * PI / (params.m * T), 1.5) / (PI * PI);
+        double prefactor = - pion_density * params.g2 * params.M / (params.Mt * params.fpi * params.fpi);
+        double return_val = 2.0 * pion_density / (params.fpi * params.fpi);
+        return_val += prefactor * (1.5 + dist_norm * (C1 * I1 + 0.5 * C2 * I2));
+        return return_val;
     }
 
-    double ImDSelfEnergy(double D_momentum, double temperature, double delta1, double delta2, double pion_density)
+    double ImDSelfEnergy(double D_energy, double temperature, double delta1, double delta2, double pion_density)
     {
-        double p = D_momentum;
+        double p = std::sqrt(2.0 * params.M * D_energy);
         double T = temperature;
         double r = params.m / params.M;
         double x2 = 2.0 * r * params.Mt; // really can't think of a good descriptionve name
         double x = std::sqrt(x2);
         
-        double dist_norm = pion_density * std::pow(2.0 * PI / (params.m * T), 1.5) / (PI * PI);
-        double prefactor = params.g2 * params.M / (4.0 * params.Mt * params.fpi * params.fpi);
+        double dist_norm = std::pow(2.0 * PI / (params.m * T), 1.5) / (PI * PI);
+        double prefactor = pion_density * PI * params.g2 * params.M / (4.0 * params.Mt * params.fpi * params.fpi);
+        double return_value = 0.0;
+        return_value += (delta1 > 0) ? std::pow(x2 * delta1, 1.5) * F(p, x * std::sqrt(delta1), T, r) : 0;
+        return_value += (delta2 > 0) ? std::pow(x2 * delta2, 1.5) * F(p, x * std::sqrt(delta2), T, r) : 0;
         
-        return prefactor * dist_norm * (std::pow(x2 * delta1, 2.5) * F(p, x * std::sqrt(delta1), T, r) + 0.5 * std::pow(x2 * delta2, 2.5) * F(p, x * std::sqrt(delta2), T, r));
+        return prefactor * dist_norm * return_value;
+    }
+
+    double ReDtSelfEnergyParallel(double Dt_energy, double temperature, double delta1, double delta2, double pion_density)
+    {
+        double q = std::sqrt(2.0 * (params.M + params.m) * Dt_energy);
+        double T = temperature;
+        double m = params.m;
+        double M = params.M;
+        double Mt = M + m;
+        double r = params.m / Mt;
+
+        auto integrandF = [=](double k, double delta) -> double
+        {
+            double k2 = k * k;
+            double K2 = 2 * (params.m * params.M) / Mt * delta;
+            if (delta < 0)
+                return k2 * F(q, k, T, r) / (k2 - K2);
+            else
+            {
+                double K = std::sqrt(K2);
+                if (k2 - K2 == 0)
+                    return 0.5 * F(K, K, T, r);
+                else 
+                    return (k2 * F(q, k, T, r) - K2 * F(q, K, T, r)) / (k2 - K2);
+            }
+        };
+
+        auto integrandG = [=](double k, double delta) -> double
+        {
+            double k2 = k * k;
+            double K2 = 2 * (params.m * params.M) / Mt * delta;
+            if (delta < 0)
+                return k2 * G(q, k, T) / (k2 - K2);
+            else
+            {
+                double K = std::sqrt(K2);
+                if (k2 - K2 == 0)
+                    return 0.5 * G(K, K, T);
+                else 
+                    return (k2 * G(q, k, T) - K2 * G(q, K, T)) / (k2 - K2);
+            }
+        };
+
+        auto integrand_log = [=](double k)
+        {
+            if (k == 0) return 0.0;
+            if (k == r * q) return 0.0;
+            double r2 = r * r;
+            double r3 = r2 * r;
+            double k2 = k * k;
+            double q2 = q * q;
+            double q3 = q2 * q;
+            double particle_dist = std::exp(- k2 / (2.0 * m * T));
+            double frac_1 = std::pow(k2 - r2 * q2, 2.0) / (16.0 * r3 * k * q3);
+            double frac_2 = std::pow((k + r * q) / (k - r * q), 2.0);
+            return k2 * particle_dist * frac_1 * std::log(frac_2);
+        };
+
+        double K1 = (delta1 > 0) ? std::sqrt(2.0 * r * params.Mt * delta1) : inf;
+        double K2 = (delta2 > 0) ? std::sqrt(2.0 * r * params.Mt * delta2) : inf;
+        double IF1 = GausQuad(integrandF, 0, K1, 1e-6, 10, delta1) + GausQuad(integrandF, K1, inf, 1e-6, 10, delta1);
+        double IF2 = GausQuad(integrandF, 0, K2, 1e-6, 10, delta2) + GausQuad(integrandF, K2, inf, 1e-6, 10, delta2);
+        double IG1 = GausQuad(integrandG, 0, K1, 1e-6, 10, delta1) + GausQuad(integrandG, K1, inf, 1e-6, 10, delta1);
+        double IG2 = GausQuad(integrandG, 0, K2, 1e-6, 10, delta2) + GausQuad(integrandG, K2, inf, 1e-6, 10, delta2);
+
+        double I_log = GausQuad(integrand_log, 0, r * q, 1e-6, 10) + GausQuad(integrand_log, r * q, inf, 1e-6, 10);
+
+        double C1 = r * params.Mt * delta1;
+        double C2 = r * params.Mt * delta2;
+        double dist_norm = std::pow(2.0 * PI / (params.m * T), 1.5) / (PI * PI);
+        double prefactor = params.g2 / (2.0 * params.fpi * params.fpi) * std::pow(M / Mt, 3.0);
+        
+        double A1 = 0.5 * C1 * dist_norm * (IF1 - IG1);
+        double A2 = 0.5 * C2 * dist_norm * (IF2 - IG2);
+
+        double return_val =  0.25 * (1.0 - 6.0 * params.m * T / (r * r * q * q)) * pion_density;
+        return_val += 0.25 * dist_norm * I_log;
+        return_val += 0.5 * (A1 + A2);
+        return prefactor * return_val + 2.0 * pion_density / (params.fpi * params.fpi);                
+    }
+
+    double ReDtSelfEnergyTransverse(double Dt_energy, double temperature, double delta1, double delta2, double pion_density)
+    {
+        return -0.5 * (ReDtSelfEnergyParallel(Dt_energy, temperature, delta1, delta2, pion_density)
+                - 2.0 * pion_density / (params.fpi * params.fpi));
+    }
+    
+    double ImDtSelfEnergyParallel(double Dt_energy, double temperature, double delta1, double delta2, double pion_density)
+    {
+        double m = params.m;
+        double M = params.M;
+        double Mt = M + m;
+        double r = m / Mt;
+        double mu_pi = m * M / Mt;
+        double T = temperature;
+
+        double q = std::sqrt(2.0 * Mt * Dt_energy);
+
+        double prefactor = params.g2 / (2.0 * params.fpi * params.fpi) * std::pow(M / Mt, 3.0);
+        double dist_norm = std::pow(2.0 * PI / (m * T), 1.5) / PI;
+
+        double C1 = delta1 > 0 ? std::sqrt(2.0 * mu_pi * delta1) : 0.0;
+        double C2 = delta2 > 0 ? std::sqrt(2.0 * mu_pi * delta2) : 0.0;
+        double return_val = std::pow(C1, 3.0) * (F(q, C1, T, r) - G(q, C1, T));
+        return_val += std::pow(C2, 3.0) * (F(q, C2, T, r) - G(q, C2, T));        
+        return prefactor * dist_norm * return_val;
+    }
+    
+    double ImDtSelfEnergyTransverse(double Dt_energy, double temperature, double delta1, double delta2, double pion_density)
+    {
+        return -0.5 * ImDtSelfEnergyParallel(Dt_energy, temperature, delta1, delta2, pion_density);
     }
 }

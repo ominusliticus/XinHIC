@@ -27,7 +27,7 @@ namespace xinhic
 
         // Galilean-invariant kinetic masses
         double m    = mzero;
-        double M    = Mtzero;
+        double M    = Mzero;
         double Mt   = M + m;
         double MX   = 2.0 * M + m;
 
@@ -48,10 +48,12 @@ namespace xinhic
         double dpm = et0 - ep - epip;
     };
 
-    double ReDSelfEnergy(double D_momentum, double temperature, double delta1, double delta2, double pion_density);
-    double ImDSelfEnergy(double D_momentum, double temperature, double delta1, double delta2, double pion_density);
-    // double ReDtSelfEnergy(double Dt_momentum, double temperature, double delta1, double delta2);  
-    // double ImDtSelfEnergy(double Dt_momentum, double temperature, double delta1, double delta2);
+    double ReDSelfEnergy(double D_energy, double temperature, double delta1, double delta2, double pion_density);
+    double ImDSelfEnergy(double D_energy, double temperature, double delta1, double delta2, double pion_density);
+    double ReDtSelfEnergyParallel(double Dt_energy, double temperature, double delta1, double delta2, double pion_density);  
+    double ReDtSelfEnergyTransverse(double Dt_energy, double temperature, double delta1, double delta2, double pion_density);
+    double ImDtSelfEnergyParallel(double Dt_energy, double temperature, double delta1, double delta2, double pion_density);
+    double ImDtSelfEnergyTransverse(double Dt_energy, double temperature, double delta1, double delta2, double pion_density);
 }
 
 #endif
